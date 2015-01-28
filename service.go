@@ -70,11 +70,13 @@ func (b *HoneyBadgerService) Start() {
 
 // Stop the HoneyBadgerService
 func (b *HoneyBadgerService) Stop() {
-	b.stopChan <- true
 	b.stopDecodeChan <- true
+	b.stopChan <- true
 	close(b.stopChan)
 	close(b.rawPacketChan)
 	close(b.stopDecodeChan)
+
+	b.connTracker.Close()
 }
 
 // startDecodingTcp calls decodeTcp in a new goroutine...

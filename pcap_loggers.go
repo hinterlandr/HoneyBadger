@@ -26,6 +26,7 @@ import (
 	"code.google.com/p/gopacket/layers"
 	"code.google.com/p/gopacket/pcapgo"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -90,6 +91,10 @@ func NewPcapLogger(dir string, flow TcpIpFlow) *PcapLogger {
 }
 
 func (p *PcapLogger) WritePacket(packet []byte) {
+	p.writeChan <- packet
+}
+
+func (p *PcapLogger) HandleWrite(packet []byte) {
 	err := p.writer.WritePacket(gopacket.CaptureInfo{
 		Timestamp:     time.Now(),
 		CaptureLength: len(packet),
@@ -101,9 +106,27 @@ func (p *PcapLogger) WritePacket(packet []byte) {
 }
 
 func (p *PcapLogger) Close() {
+	log.Print("closing pcap logger\n")
+	var err error
+
+	p.closeChan <- true
 	close(p.writeChan)
 	close(p.closeChan)
-	p.fileHandle.Close()
+
+	p.bufWriter.Flush()
+	if err != nil {
+		panic(err)
+	}
+
+	err = p.fileHandle.Sync()
+	if err != nil {
+		panic(err)
+	}
+
+	err = p.fileHandle.Close()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (p *PcapLogger) StartWriter() {
@@ -116,7 +139,7 @@ func (p *PcapLogger) startWriter() {
 		case <-p.closeChan:
 			return
 		case packetBytes := <-p.writeChan:
-			p.WritePacket(packetBytes)
+			p.HandleWrite(packetBytes)
 		}
 	}
 }

@@ -112,6 +112,7 @@ func (a *AttackJsonLogger) Publish(report *AttackReport) {
 }
 
 func (a *AttackJsonLogger) Close() {
+	log.Print("closing attack json logger\n")
 	var err error
 
 	err = a.BufWriter.Flush()

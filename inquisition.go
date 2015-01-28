@@ -111,6 +111,7 @@ func NewConnection() *Connection {
 
 func (c *Connection) Close() {
 	c.AttackLogger.Close()
+	c.PacketLogger.Close()
 }
 
 // PacketLoggerWrite writes the specified raw packet to the raw packet log.
@@ -628,6 +629,13 @@ func NewConnTracker() *ConnTracker {
 	return &ConnTracker{
 		flowAMap: make(map[TcpIpFlow]*Connection),
 		flowBMap: make(map[TcpIpFlow]*Connection),
+	}
+}
+
+func (c *ConnTracker) Close() {
+	for k, v := range c.flowAMap {
+		log.Printf("ConnTracker: closing %s\n", k.String())
+		v.Close()
 	}
 }
 
