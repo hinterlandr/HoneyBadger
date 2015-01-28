@@ -21,6 +21,7 @@
 package HoneyBadger
 
 import (
+	"bufio"
 	"code.google.com/p/gopacket"
 	"code.google.com/p/gopacket/layers"
 	"code.google.com/p/gopacket/pcapgo"
@@ -61,6 +62,7 @@ type PcapLogger struct {
 	flow       TcpIpFlow
 	writer     *pcapgo.Writer
 	fileHandle *os.File
+	bufWriter  *bufio.Writer
 	closeChan  chan bool
 	writeChan  chan []byte
 }
@@ -77,8 +79,8 @@ func NewPcapLogger(dir string, flow TcpIpFlow) *PcapLogger {
 	if err != nil {
 		panic(fmt.Sprintf("error opening file: %v", err))
 	}
-
-	p.writer = pcapgo.NewWriter(p.fileHandle)
+	p.bufWriter = bufio.NewWriter(p.fileHandle)
+	p.writer = pcapgo.NewWriter(p.bufWriter)
 
 	err = p.writer.WriteFileHeader(65536, layers.LinkTypeEthernet) // XXX
 	if err != nil {
