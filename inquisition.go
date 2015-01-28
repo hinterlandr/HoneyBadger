@@ -109,6 +109,10 @@ func NewConnection() *Connection {
 	}
 }
 
+func (c *Connection) Close() {
+	c.AttackLogger.Close()
+}
+
 // PacketLoggerWrite writes the specified raw packet to the raw packet log.
 func (c *Connection) PacketLoggerWrite(packetBytes []byte, flow TcpIpFlow) {
 	c.PacketLogger.WritePacket(packetBytes, flow)
@@ -526,6 +530,7 @@ func (c *Connection) stateLastAck(p PacketManifest, flow TcpIpFlow, nextSeqPtr *
 			// XXX
 			log.Print("TCP_CLOSED\n")
 			c.state = TCP_CLOSED
+
 			// ...
 		} else {
 			log.Print("LAST-ACK: protocol anamoly\n")

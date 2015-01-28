@@ -42,6 +42,10 @@ func (d *DummyAttackLogger) ReportInjectionAttack(instant time.Time, flow TcpIpF
 	d.Count += 1
 }
 
+func (d *DummyAttackLogger) Close() {
+
+}
+
 func TestInjectionDetector(t *testing.T) {
 	attackLogger := NewDummyAttackLogger()
 

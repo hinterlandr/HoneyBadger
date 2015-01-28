@@ -21,6 +21,7 @@
 package HoneyBadger
 
 import (
+	"bufio"
 	"code.google.com/p/gopacket/tcpassembly"
 	"encoding/base64"
 	"encoding/json"
@@ -46,16 +47,27 @@ type AttackReport struct {
 type AttackLogger interface {
 	ReportHijackAttack(instant time.Time, flow TcpIpFlow)
 	ReportInjectionAttack(instant time.Time, flow TcpIpFlow, attemptPayload []byte, overlap []byte, start, end tcpassembly.Sequence, overlapStart, overlapEnd int)
+	Close()
 }
 
 type AttackJsonLogger struct {
-	LogDir string
+	LogDir    string
+	File      *os.File
+	BufWriter *bufio.Writer
+	Encoder   *json.Encoder
 }
 
-func NewAttackJsonLogger(logDir string) *AttackJsonLogger {
+func NewAttackJsonLogger(logDir string, flow TcpIpFlow) *AttackJsonLogger {
+	var err error
 	a := AttackJsonLogger{
 		LogDir: logDir,
 	}
+	a.File, err = os.OpenFile(filepath.Join(a.LogDir, fmt.Sprintf("%s.attackreport.json", &flow)), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		panic(fmt.Sprintf("error opening file: %v", err))
+	}
+	a.BufWriter = bufio.NewWriter(a.File)
+	a.Encoder = json.NewEncoder(a.BufWriter)
 	return &a
 }
 
@@ -74,8 +86,6 @@ func (a *AttackJsonLogger) ReportHijackAttack(instant time.Time, flow TcpIpFlow)
 }
 
 func (a *AttackJsonLogger) ReportInjectionAttack(instant time.Time, flow TcpIpFlow, attemptPayload []byte, overlap []byte, start, end tcpassembly.Sequence, overlapStart, overlapEnd int) {
-
-	log.Print("ReportInjectionAttack\n")
 
 	timeText, err := instant.MarshalText()
 	if err != nil {
@@ -97,12 +107,25 @@ func (a *AttackJsonLogger) ReportInjectionAttack(instant time.Time, flow TcpIpFl
 }
 
 func (a *AttackJsonLogger) Publish(report *AttackReport) {
-	log.Print("Publish\n")
-	b, err := json.Marshal(*report)
-	f, err := os.OpenFile(filepath.Join(a.LogDir, fmt.Sprintf("%s.attackreport.json", report.Flow)), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	log.Print("publishing TCP Attack report\n")
+	a.Encoder.Encode(*report)
+}
+
+func (a *AttackJsonLogger) Close() {
+	var err error
+
+	err = a.BufWriter.Flush()
 	if err != nil {
-		panic(fmt.Sprintf("error opening file: %v", err))
+		panic(err)
 	}
-	defer f.Close()
-	f.Write(b)
+
+	err = a.File.Sync()
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.File.Close()
+	if err != nil {
+		panic(err)
+	}
 }
