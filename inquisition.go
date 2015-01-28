@@ -84,7 +84,6 @@ func (r *Reassembly) String() string {
 // We implement a basic TCP finite state machine and track state in order to detect
 // hanshake hijack and other TCP attacks such as segment veto and stream injection.
 type Connection struct {
-	AttackLogger     AttackLogger
 	state            uint8
 	clientState      uint8
 	serverState      uint8
@@ -98,6 +97,7 @@ type Connection struct {
 	ClientStreamRing *ring.Ring
 	ServerStreamRing *ring.Ring
 	PacketLogger     *ConnectionPacketLogger
+	AttackLogger     AttackLogger
 }
 
 // NewConnection returns a new Connection struct
@@ -107,6 +107,11 @@ func NewConnection() *Connection {
 		ClientStreamRing: ring.New(MAX_CONN_PACKETS),
 		ServerStreamRing: ring.New(MAX_CONN_PACKETS),
 	}
+}
+
+func (c *Connection) Close() {
+	c.AttackLogger.Close()
+	c.PacketLogger.Close()
 }
 
 // PacketLoggerWrite writes the specified raw packet to the raw packet log.
@@ -333,6 +338,8 @@ func (c *Connection) detectInjection(p PacketManifest, flow TcpIpFlow) {
 	overlapBytes, startOffset, endOffset := c.getOverlapBytes(head, tail, start, end)
 	if !bytes.Equal(overlapBytes, p.Payload[startOffset:endOffset]) {
 		c.AttackLogger.ReportInjectionAttack(time.Now(), flow, p.Payload, overlapBytes, start, end, startOffset, endOffset)
+	} else {
+		log.Print("not an attack attempt\n")
 	}
 }
 
@@ -435,6 +442,7 @@ func (c *Connection) stateDataTransfer(p PacketManifest, flow TcpIpFlow) {
 		if p.TCP.RST {
 			// XXX
 			c.state = TCP_CLOSED
+			c.Close()
 			return
 		}
 		if len(p.Payload) > 0 {
@@ -526,7 +534,8 @@ func (c *Connection) stateLastAck(p PacketManifest, flow TcpIpFlow, nextSeqPtr *
 			// XXX
 			log.Print("TCP_CLOSED\n")
 			c.state = TCP_CLOSED
-			// ...
+			c.Close()
+			return
 		} else {
 			log.Print("LAST-ACK: protocol anamoly\n")
 		}
@@ -623,6 +632,13 @@ func NewConnTracker() *ConnTracker {
 	return &ConnTracker{
 		flowAMap: make(map[TcpIpFlow]*Connection),
 		flowBMap: make(map[TcpIpFlow]*Connection),
+	}
+}
+
+func (c *ConnTracker) Close() {
+	for k, v := range c.flowAMap {
+		log.Printf("ConnTracker: closing %s\n", k.String())
+		v.Close()
 	}
 }
 
